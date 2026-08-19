@@ -171,6 +171,10 @@
         <input type="number" id="pulseIn" inputmode="numeric" placeholder="80" min="30" max="220">
       </label>
     </div>
+    <div style="margin-top:10px">
+      <div class="field-label">Date</div>
+      <input type="date" id="dateIn" style="width:100%;font-size:16px;font-weight:600;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:#FBFAF7;color:var(--ink);font-family:inherit">
+    </div>
     <button class="save-btn" id="saveBtn" disabled>Save reading</button>
   </div>
 
@@ -402,7 +406,15 @@ function renderAll() { renderAvg(); renderCharts(); renderHistory(); }
 const sysIn = document.getElementById("sysIn");
 const diaIn = document.getElementById("diaIn");
 const pulseIn = document.getElementById("pulseIn");
+const dateIn = document.getElementById("dateIn");
 const saveBtn = document.getElementById("saveBtn");
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+dateIn.value = todayStr();
+dateIn.max = todayStr();
 
 function validate() {
   saveBtn.disabled = !(sysIn.value && diaIn.value);
@@ -413,9 +425,19 @@ saveBtn.addEventListener("click", () => {
   const s = parseInt(sysIn.value, 10), d = parseInt(diaIn.value, 10);
   const p = pulseIn.value ? parseInt(pulseIn.value, 10) : null;
   if (!s || !d || s < 50 || s > 260 || d < 30 || d > 160) return;
-  readings.unshift({ id: Date.now(), ts: Date.now(), sys: s, dia: d, pulse: p });
+
+  // Use the picked date. Today keeps the current time; a past date is stamped at noon.
+  let ts = Date.now();
+  if (dateIn.value && dateIn.value !== todayStr()) {
+    const parts = dateIn.value.split('-');
+    ts = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 12, 0, 0).getTime();
+  }
+
+  readings.unshift({ id: Date.now(), ts: ts, sys: s, dia: d, pulse: p });
+  readings.sort((a, b) => b.ts - a.ts);
   save();
   sysIn.value = ""; diaIn.value = ""; pulseIn.value = "";
+  dateIn.value = todayStr();
   validate();
   renderAll();
 });
