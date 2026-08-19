@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blood Pressure Log</title>
+<meta name="description" content="A simple daily blood pressure log with averages and trend charts.">
+<style>
+  :root {
+    --bg: #F6F4EF;
+    --ink: #1E2A32;
+    --card: #FFFFFF;
+    --muted: #7A8189;
+    --faint: #9AA0A6;
+    --border: #E2DED4;
+    --low: #3D6EA5;
+    --normal: #2E7D5B;
+    --elevated: #C9A227;
+    --stage1: #D4772E;
+    --stage2: #C0392B;
+    --crisis: #8E1F2F;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+    padding-bottom: 48px;
+  }
+  .wrap { max-width: 460px; margin: 0 auto; padding: 0 16px; }
+  header { padding: 28px 6px 6px; }
+  .eyebrow { font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+  h1 { margin: 4px 0 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+
+  .card { background: var(--card); border-radius: 18px; box-shadow: 0 1px 3px rgba(30,42,50,0.08); margin-top: 14px; }
+
+  /* Average card */
+  .avg-card { background: var(--ink); color: var(--bg); border-radius: 18px; padding: 22px 22px 18px; margin-top: 16px; }
+  .avg-top { display: flex; justify-content: space-between; align-items: center; }
+  .avg-label { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.7; }
+  .range-btns { display: flex; gap: 6px; }
+  .range-btns button {
+    border: none; border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600;
+    cursor: pointer; background: rgba(246,244,239,0.12); color: var(--bg); font-family: inherit;
+    transition: background 0.15s;
+  }
+  .range-btns button.active { background: var(--bg); color: var(--ink); }
+  .avg-num { display: flex; align-items: baseline; gap: 10px; margin-top: 10px; }
+  .avg-num .big { font-size: 56px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .avg-num .slash { opacity: 0.45; font-weight: 400; }
+  .avg-num .unit { font-size: 13px; opacity: 0.6; }
+  .avg-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+  .pill { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; color: #fff; border-radius: 6px; padding: 4px 10px; }
+  .avg-meta { font-size: 13px; opacity: 0.7; }
+  .avg-empty { margin-top: 14px; font-size: 15px; opacity: 0.75; line-height: 1.5; }
+
+  /* Charts */
+  .chart-card { padding: 16px 14px 10px; }
+  .chart-card h2 { font-size: 14px; font-weight: 700; margin: 0; padding: 0 4px; }
+  .chart-title { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+  svg { width: 100%; height: auto; display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 8px 4px 6px; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; opacity: 0.5; display: inline-block; }
+
+  /* Entry form */
+  .form-card { padding: 18px; }
+  .fields { display: flex; gap: 10px; }
+  .fields label { flex: 1; }
+  .field-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  input[type=number] {
+    width: 100%; font-size: 22px; font-weight: 600; text-align: center;
+    padding: 10px 4px; border-radius: 10px; border: 1.5px solid var(--border);
+    background: #FBFAF7; color: var(--ink); font-variant-numeric: tabular-nums;
+    font-family: inherit; -moz-appearance: textfield; appearance: textfield;
+  }
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input:focus, button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .save-btn {
+    width: 100%; margin-top: 12px; padding: 13px 0; border-radius: 12px; border: none;
+    background: var(--ink); color: var(--bg); font-size: 15px; font-weight: 700;
+    letter-spacing: 0.02em; cursor: pointer; font-family: inherit; transition: background 0.15s;
+  }
+  .save-btn:disabled { background: #C9CDD1; cursor: default; }
+
+  /* Reference guide */
+  .guide-toggle {
+    width: 100%; display: flex; justify-content: space-between; align-items: center;
+    background: transparent; border: none; cursor: pointer; padding: 16px 18px;
+    color: var(--ink); font-family: inherit;
+  }
+  .guide-toggle .t { font-size: 14px; font-weight: 700; letter-spacing: 0.02em; }
+  .guide-toggle .arrow { font-size: 16px; color: var(--muted); transition: transform 0.2s; }
+  .guide-toggle.open .arrow { transform: rotate(180deg); }
+  .guide-body { padding: 0 18px 16px; display: none; }
+  .guide-body.open { display: block; }
+  .band-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid #F0EDE6; }
+  .band-bar { width: 4px; align-self: stretch; border-radius: 2px; min-height: 36px; }
+  .band-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .band-head .n { font-size: 14px; font-weight: 700; }
+  .band-head .v { font-size: 13px; color: #4A545C; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .band-head .v em { color: #A9AEB4; font-size: 11px; font-style: normal; }
+  .band-note { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+  .guide-foot { font-size: 11px; color: var(--faint); margin-top: 10px; line-height: 1.5; }
+
+  /* History */
+  .hist-label { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); padding: 22px 6px 8px; }
+  .reading { display: flex; align-items: center; gap: 12px; background: var(--card); border-radius: 14px; padding: 12px 14px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(30,42,50,0.06); }
+  .reading .bar { width: 4px; align-self: stretch; border-radius: 2px; }
+  .reading .main { flex: 1; }
+  .reading .nums { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .reading .nums .slash { color: #A9AEB4; font-weight: 400; }
+  .reading .nums .pulse { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 10px; }
+  .reading .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .del { border: none; background: transparent; color: #B7BCC1; font-size: 18px; cursor: pointer; padding: 6px; line-height: 1; font-family: inherit; }
+  .empty { padding: 12px 6px; color: var(--muted); font-size: 14px; }
+  .disclaimer { font-size: 12px; color: var(--faint); line-height: 1.5; padding: 10px 6px 0; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Daily log</div>
+    <h1>Blood Pressure</h1>
+  </header>
+
+  <div class="avg-card">
+    <div class="avg-top">
+      <div class="avg-label">Average</div>
+      <div class="range-btns" id="rangeBtns">
+        <button data-range="7" class="active">7d</button>
+        <button data-range="30">30d</button>
+        <button data-range="all">All</button>
+      </div>
+    </div>
+    <div id="avgContent"></div>
+  </div>
+
+  <div class="card chart-card" id="chartCard" hidden>
+    <h2>Daily averages</h2>
+    <div class="chart-title">Systolic</div>
+    <div id="sysChart"></div>
+    <div class="chart-title">Diastolic</div>
+    <div id="diaChart"></div>
+    <div class="legend">
+      <span><i style="background:var(--low)"></i>Low</span>
+      <span><i style="background:var(--normal)"></i>Normal</span>
+      <span><i style="background:var(--elevated)"></i>Elevated</span>
+      <span><i style="background:var(--stage1)"></i>Stage 1</span>
+      <span><i style="background:var(--stage2)"></i>Stage 2</span>
+      <span><i style="background:var(--crisis)"></i>Crisis</span>
+    </div>
+  </div>
+
+  <div class="card form-card">
+    <div class="fields">
+      <label>
+        <div class="field-label">Systolic</div>
+        <input type="number" id="sysIn" inputmode="numeric" placeholder="135" min="50" max="260">
+      </label>
+      <label>
+        <div class="field-label">Diastolic</div>
+        <input type="number" id="diaIn" inputmode="numeric" placeholder="85" min="30" max="160">
+      </label>
+      <label>
+        <div class="field-label">Pulse (opt.)</div>
+        <input type="number" id="pulseIn" inputmode="numeric" placeholder="80" min="30" max="220">
+      </label>
+    </div>
+    <button class="save-btn" id="saveBtn" disabled>Save reading</button>
+  </div>
+
+  <div class="card">
+    <button class="guide-toggle" id="guideToggle">
+      <span class="t">What the numbers mean</span>
+      <span class="arrow">&#9662;</span>
+    </button>
+    <div class="guide-body" id="guideBody"></div>
+  </div>
+
+  <div class="hist-label">History</div>
+  <div id="history"></div>
+
+  <p class="disclaimer">For personal tracking only &mdash; not medical advice. Share your log with your doctor.</p>
+</div>
+
+<script>
+"use strict";
+
+// ---------- Data ----------
+const STORAGE_KEY = "bp-readings";
+const SEED_FLAG = "bp-seeded-v1";
+
+const COLORS = {
+  low: "#3D6EA5", normal: "#2E7D5B", elevated: "#C9A227",
+  stage1: "#D4772E", stage2: "#C0392B", crisis: "#8E1F2F"
+};
+
+function categorize(sys, dia) {
+  if (sys >= 180 || dia >= 120) return { label: "Crisis — seek care", color: COLORS.crisis };
+  if (sys >= 140 || dia >= 90) return { label: "High (Stage 2)", color: COLORS.stage2 };
+  if (sys >= 130 || dia >= 80) return { label: "High (Stage 1)", color: COLORS.stage1 };
+  if (sys >= 120) return { label: "Elevated", color: COLORS.elevated };
+  if (sys < 90 || dia < 60) return { label: "Low", color: COLORS.low };
+  return { label: "Normal", color: COLORS.normal };
+}
+function sysColor(v) {
+  return v >= 180 ? COLORS.crisis : v >= 140 ? COLORS.stage2 : v >= 130 ? COLORS.stage1
+    : v >= 120 ? COLORS.elevated : v >= 90 ? COLORS.normal : COLORS.low;
+}
+function diaColor(v) {
+  return v >= 120 ? COLORS.crisis : v >= 90 ? COLORS.stage2 : v >= 80 ? COLORS.stage1
+    : v >= 60 ? COLORS.normal : COLORS.low;
+}
+
+const BANDS_INFO = [
+  { label: "Low (hypotension)", sys: "Below 90", join: "or", dia: "Below 60", color: COLORS.low,
+    note: "Only a concern if you have symptoms like dizziness or fainting." },
+  { label: "Normal", sys: "90\u2013119", join: "and", dia: "60\u201379", color: COLORS.normal,
+    note: "The healthy range." },
+  { label: "Elevated", sys: "120\u2013129", join: "and", dia: "Below 80", color: COLORS.elevated,
+    note: "Not hypertension yet, but worth watching." },
+  { label: "High \u2014 Stage 1", sys: "130\u2013139", join: "or", dia: "80\u201389", color: COLORS.stage1,
+    note: "Usually addressed with lifestyle changes first; discuss with your doctor." },
+  { label: "High \u2014 Stage 2", sys: "140+", join: "or", dia: "90+", color: COLORS.stage2,
+    note: "Typically needs medical management if consistent." },
+  { label: "Crisis", sys: "180+", join: "or", dia: "120+", color: COLORS.crisis,
+    note: "Wait 5 min and re-check. If still this high, seek medical care right away." },
+];
+
+const SYS_BANDS = [
+  { from: 180, to: 260, color: COLORS.crisis },
+  { from: 140, to: 180, color: COLORS.stage2 },
+  { from: 130, to: 140, color: COLORS.stage1 },
+  { from: 120, to: 130, color: COLORS.elevated },
+  { from: 90, to: 120, color: COLORS.normal },
+  { from: 40, to: 90, color: COLORS.low },
+];
+const DIA_BANDS = [
+  { from: 120, to: 160, color: COLORS.crisis },
+  { from: 90, to: 120, color: COLORS.stage2 },
+  { from: 80, to: 90, color: COLORS.stage1 },
+  { from: 60, to: 80, color: COLORS.normal },
+  { from: 30, to: 60, color: COLORS.low },
+];
+
+let readings = [];
+let range = "7";
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) readings = JSON.parse(raw);
+  } catch (e) { readings = []; }
+
+  if (!localStorage.getItem(SEED_FLAG)) {
+    const now = Date.now();
+    const seed = [
+      { id: now, ts: now, sys: 136, dia: 89, pulse: 82 },
+      { id: now - 1, ts: now - 5 * 60000, sys: 132, dia: 82, pulse: 78 },
+      { id: now - 2, ts: now - 10 * 60000, sys: 135, dia: 86, pulse: 81 },
+    ];
+    readings = seed.concat(readings);
+    save();
+    localStorage.setItem(SEED_FLAG, "yes");
+  }
+}
+function save() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(readings)); }
+  catch (e) { console.error("Could not save", e); }
+}
+
+// ---------- Helpers ----------
+const fmtDate = (ts) => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+const fmtTime = (ts) => new Date(ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function inRange() {
+  const cutoff = range === "all" ? 0 : Date.now() - parseInt(range, 10) * 86400000;
+  return readings.filter((r) => r.ts >= cutoff);
+}
+
+// ---------- Rendering ----------
+function renderAvg() {
+  const arr = inRange();
+  const el = document.getElementById("avgContent");
+  if (!arr.length) {
+    el.innerHTML = '<div class="avg-empty">No readings in this range yet. Log one below and your average appears here.</div>';
+    return;
+  }
+  const mean = (key) => {
+    const vals = arr.filter((r) => r[key]).map((r) => r[key]);
+    return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+  };
+  const s = mean("sys"), d = mean("dia"), p = mean("pulse");
+  const cat = categorize(s, d);
+  el.innerHTML =
+    '<div class="avg-num"><span class="big">' + s + '<span class="slash">/</span>' + d + '</span><span class="unit">mmHg</span></div>' +
+    '<div class="avg-bottom"><span class="pill" style="background:' + cat.color + '">' + esc(cat.label) + '</span>' +
+    '<span class="avg-meta">' + arr.length + ' reading' + (arr.length !== 1 ? 's' : '') + (p ? ' \u00B7 \u2665 ' + p : '') + '</span></div>';
+}
+
+function bandChartSVG(data, bands, yMin, yMax) {
+  const W = 420, H = 180, padL = 34, padR = 12, padT = 10, padB = 26;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const yPos = (v) => padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+  const xPos = (i) => data.length === 1 ? padL + plotW / 2 : padL + (i / (data.length - 1)) * plotW;
+
+  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">';
+
+  bands.forEach((b) => {
+    const top = Math.max(b.from, yMin), bot = Math.min(b.to, yMax);
+    if (bot <= yMin || top >= yMax) return;
+    const y1 = yPos(bot), y2 = yPos(top);
+    svg += '<rect x="' + padL + '" y="' + y1 + '" width="' + plotW + '" height="' + (y2 - y1) + '" fill="' + b.color + '" opacity="0.14"/>';
+  });
+
+  const gridVals = [...new Set(bands.flatMap((b) => [b.from, b.to]))].filter((v) => v >= yMin && v <= yMax);
+  gridVals.forEach((v) => {
+    const y = yPos(v);
+    svg += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y + '" y2="' + y + '" stroke="#1E2A32" stroke-opacity="0.1" stroke-dasharray="3,3"/>';
+    svg += '<text x="' + (padL - 6) + '" y="' + (y + 3.5) + '" text-anchor="end" font-size="10" fill="#7A8189" font-family="inherit">' + v + '</text>';
+  });
+
+  if (data.length > 1) {
+    const pts = data.map((d, i) => xPos(i) + ',' + yPos(d.value)).join(' ');
+    svg += '<polyline points="' + pts + '" fill="none" stroke="#1E2A32" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+  }
+
+  data.forEach((d, i) => {
+    const x = xPos(i), y = yPos(d.value);
+    svg += '<circle cx="' + x + '" cy="' + y + '" r="4.5" fill="' + d.color + '" stroke="#F6F4EF" stroke-width="1.5"/>';
+    svg += '<text x="' + x + '" y="' + (y - 9) + '" text-anchor="middle" font-size="11" font-weight="700" fill="#1E2A32" font-family="inherit">' + d.value + '</text>';
+    svg += '<text x="' + x + '" y="' + (H - 8) + '" text-anchor="middle" font-size="10" fill="#7A8189" font-family="inherit">' + esc(d.day) + '</text>';
+  });
+
+  return svg + '</svg>';
+}
+
+function renderCharts() {
+  const arr = inRange();
+  const card = document.getElementById("chartCard");
+  if (!arr.length) { card.hidden = true; return; }
+  card.hidden = false;
+
+  const byDay = {};
+  arr.forEach((r) => {
+    const d = new Date(r.ts);
+    const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    if (!byDay[key]) byDay[key] = { sys: [], dia: [], ts: r.ts };
+    byDay[key].sys.push(r.sys);
+    byDay[key].dia.push(r.dia);
+  });
+  const days = Object.keys(byDay).sort().slice(-14);
+  const mean = (a) => Math.round(a.reduce((x, y) => x + y, 0) / a.length);
+
+  const sysData = days.map((k) => { const v = mean(byDay[k].sys); return { day: fmtDate(byDay[k].ts), value: v, color: sysColor(v) }; });
+  const diaData = days.map((k) => { const v = mean(byDay[k].dia); return { day: fmtDate(byDay[k].ts), value: v, color: diaColor(v) }; });
+
+  const sVals = sysData.map((d) => d.value), dVals = diaData.map((d) => d.value);
+  const sMin = Math.min(85, ...sVals) - 5, sMax = Math.max(145, ...sVals) + 8;
+  const dMin = Math.min(55, ...dVals) - 5, dMax = Math.max(95, ...dVals) + 8;
+
+  document.getElementById("sysChart").innerHTML = bandChartSVG(sysData, SYS_BANDS, sMin, sMax);
+  document.getElementById("diaChart").innerHTML = bandChartSVG(diaData, DIA_BANDS, dMin, dMax);
+}
+
+function renderHistory() {
+  const el = document.getElementById("history");
+  if (!readings.length) {
+    el.innerHTML = '<div class="empty">Nothing logged yet.</div>';
+    return;
+  }
+  el.innerHTML = readings.map((r) => {
+    const cat = categorize(r.sys, r.dia);
+    return '<div class="reading">' +
+      '<div class="bar" style="background:' + cat.color + '"></div>' +
+      '<div class="main"><div class="nums">' + r.sys + '<span class="slash">/</span>' + r.dia +
+      (r.pulse ? '<span class="pulse">\u2665 ' + r.pulse + '</span>' : '') + '</div>' +
+      '<div class="meta">' + esc(fmtDate(r.ts)) + ' \u00B7 ' + esc(fmtTime(r.ts)) + ' \u00B7 ' + esc(cat.label) + '</div></div>' +
+      '<button class="del" data-id="' + r.id + '" aria-label="Delete reading">\u00D7</button></div>';
+  }).join('');
+}
+
+function renderGuide() {
+  document.getElementById("guideBody").innerHTML = BANDS_INFO.map((b) =>
+    '<div class="band-row"><div class="band-bar" style="background:' + b.color + '"></div>' +
+    '<div style="flex:1"><div class="band-head"><span class="n">' + esc(b.label) + '</span>' +
+    '<span class="v">' + esc(b.sys) + ' <em>' + b.join + '</em> ' + esc(b.dia) + '</span></div>' +
+    '<div class="band-note">' + esc(b.note) + '</div></div></div>'
+  ).join('') +
+  '<div class="guide-foot">Systolic (top) / diastolic (bottom), in mmHg. If the two numbers fall in different bands, the higher band applies. Based on American Heart Association categories.</div>';
+}
+
+function renderAll() { renderAvg(); renderCharts(); renderHistory(); }
+
+// ---------- Events ----------
+const sysIn = document.getElementById("sysIn");
+const diaIn = document.getElementById("diaIn");
+const pulseIn = document.getElementById("pulseIn");
+const saveBtn = document.getElementById("saveBtn");
+
+function validate() {
+  saveBtn.disabled = !(sysIn.value && diaIn.value);
+}
+[sysIn, diaIn, pulseIn].forEach((el) => el.addEventListener("input", validate));
+
+saveBtn.addEventListener("click", () => {
+  const s = parseInt(sysIn.value, 10), d = parseInt(diaIn.value, 10);
+  const p = pulseIn.value ? parseInt(pulseIn.value, 10) : null;
+  if (!s || !d || s < 50 || s > 260 || d < 30 || d > 160) return;
+  readings.unshift({ id: Date.now(), ts: Date.now(), sys: s, dia: d, pulse: p });
+  save();
+  sysIn.value = ""; diaIn.value = ""; pulseIn.value = "";
+  validate();
+  renderAll();
+});
+
+document.getElementById("history").addEventListener("click", (e) => {
+  const btn = e.target.closest(".del");
+  if (!btn) return;
+  readings = readings.filter((r) => r.id !== Number(btn.dataset.id));
+  save();
+  renderAll();
+});
+
+document.getElementById("rangeBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  range = btn.dataset.range;
+  document.querySelectorAll("#rangeBtns button").forEach((b) => b.classList.toggle("active", b === btn));
+  renderAvg();
+  renderCharts();
+});
+
+document.getElementById("guideToggle").addEventListener("click", function () {
+  this.classList.toggle("open");
+  document.getElementById("guideBody").classList.toggle("open");
+});
+
+// ---------- Init ----------
+load();
+renderGuide();
+renderAll();
+</script>
+</body>
+</html>
